@@ -10,7 +10,6 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
@@ -55,66 +54,87 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    var size= MediaQuery.of(context).size;
+    var actualSize= MediaQuery.of(context).size;
+    Size size= Size(
+      min(actualSize.width, 600),
+      actualSize.height,
+    );
     return Scaffold(
-      body: getBody(size)
+      body: getBody(actualSize, size)
     );
   }
 
-  Widget getBody(Size size) {
+  Widget getBody(Size actualSize, Size size) {
     double defWidth= size.width- radius;
     return Container(
-      height: size.height,
-      width: size.width,
-      color: Colors.white,
-      child: Stack(
-        children: [
-          Positioned(
-            top: yPosition- radius,
-            left: xPosition- radius,
-            child: Container(
-              height: 2*radius,
-              width: 2*radius,
-              decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(radius),
-                  color: Colors.blueGrey
-              ),
-            )
-          ),
-          Positioned(
-              bottom: 0,
-              left: reflectorXPosition,
-              child: Container(
-                height: 30,
-                width: 100,
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(5),
-                    color: Colors.blueGrey
-                ),
-              )
-          ),
-          SizedBox(
-            height: !stop && !isGameOver? size.height : 0,
+      height: actualSize.height,
+      width: actualSize.width,
+      color: Colors.blueGrey,
+      child: Center(
+        child: Container(
+            height: size.height,
             width: size.width,
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: SizedBox(
-                height: 200,
-                width: size.width- 100,
-                child: Row(
-                  children: !stop && !isGameOver? [
-                    getDirectionButton(size, -1),
-                    getDirectionButton(size, 1),
-                  ] : [],
-                )
-              )
+            color: Colors.white,
+            child: Stack(
+              children: [
+                SizedBox(
+                  height: size.height,
+                  width: size.width,
+                  child: const Center(
+                      child: Text(
+                        "Developed By: Abdullah Azzam",
+                        style: TextStyle(fontSize: 30, color: Colors.black12),
+                      )
+                  ),
+                ),
+                Positioned(
+                    top: yPosition- radius,
+                    left: xPosition- radius,
+                    child: Container(
+                      height: 2*radius,
+                      width: 2*radius,
+                      decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(radius),
+                          color: Colors.blueGrey
+                      ),
+                    )
+                ),
+                Positioned(
+                    bottom: 0,
+                    left: reflectorXPosition,
+                    child: Container(
+                      height: 30,
+                      width: 100,
+                      decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(5),
+                          color: Colors.blueGrey
+                      ),
+                    )
+                ),
+                SizedBox(
+                    height: !stop && !isGameOver? size.height : 0,
+                    width: size.width,
+                    child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: SizedBox(
+                            height: 200,
+                            width: size.width- 100,
+                            child: Row(
+                              children: !stop && !isGameOver? [
+                                getDirectionButton(size, -1),
+                                getDirectionButton(size, 1),
+                              ] : [],
+                            )
+                        )
+                    )
+                ),
+                getButton(size, defWidth),
+                getScore(size),
+                getScoreDisplay(size),
+                isGameOver? gameOver(size, defWidth) : const SizedBox(height: 0),
+              ],
             )
-          ),
-          getButton(size, defWidth),
-          getScore(size),
-          getScoreDisplay(size),
-          isGameOver? gameOver(size, defWidth) : const SizedBox(height: 0),
-        ],
+        )
       )
     );
   }
