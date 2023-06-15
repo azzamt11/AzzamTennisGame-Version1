@@ -1,7 +1,10 @@
+import 'dart:convert';
+import 'dart:html';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const MyApp());
@@ -28,6 +31,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  Color themeColor= const Color.fromRGBO(26, 29, 64, 1);
 
   double yPosition= 100;
   double xPosition= 100;
@@ -43,6 +47,7 @@ class _MyHomePageState extends State<MyHomePage> {
   bool isStarted= false;
   bool isGameOver= false;
   bool isShowingScore= false;
+  bool scoreIsSubmitted= false;
 
   Velocity velocity= Velocity();
 
@@ -69,7 +74,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return Container(
       height: actualSize.height,
       width: actualSize.width,
-      color: Colors.blueGrey,
+      color: themeColor,
       child: Center(
         child: Container(
             height: size.height,
@@ -83,7 +88,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: const Center(
                       child: Text(
                         "Developed By: Abdullah Azzam",
-                        style: TextStyle(fontSize: 30, color: Colors.black12),
+                        style: TextStyle(fontSize: 25, color: Colors.black12),
                       )
                   ),
                 ),
@@ -95,7 +100,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       width: 2*radius,
                       decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(radius),
-                          color: Colors.blueGrey
+                          color: themeColor
                       ),
                     )
                 ),
@@ -107,7 +112,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       width: 100,
                       decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(5),
-                          color: Colors.blueGrey
+                          color: themeColor
                       ),
                     )
                 ),
@@ -150,7 +155,7 @@ class _MyHomePageState extends State<MyHomePage> {
         child: Container(
           height: size.height,
           width: size.width,
-          color: Colors.black38,
+          color: const Color.fromRGBO(255, 255, 255, 0.75),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -160,7 +165,11 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: Center(
                       child: Text(
                         "Latest Score: $score",
-                        style: const TextStyle(color: Colors.white, fontSize: 25),
+                        style: TextStyle(
+                          color: themeColor, 
+                          fontSize: 25, 
+                          fontWeight: FontWeight.bold
+                        ),
                       )
                   )
               ),
@@ -170,10 +179,60 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: Center(
                       child: Text(
                         "Highest Score: $highestScore",
-                        style: const TextStyle(color: Colors.white, fontSize: 25),
+                        style: const TextStyle(
+                          color: Color.fromRGBO(26, 29, 64, 1), 
+                          fontSize: 25, 
+                          fontWeight: FontWeight.bold
+                        ),
                       )
                   )
-              )
+              ),
+              GestureDetector(
+                onTap: () async{
+                  String? userName= await DataProvider().getString("user", "name");
+                  if(userName!=null) {
+                    String response= await ApiClient().submitScore({
+                      "title": "atg001-hs",
+                      "body": "$highestScore",
+                      "author": userName 
+                    });
+                    // ignore: use_build_context_synchronously
+                    StaticWidget().getFloatingSnackBar(size, response, context);
+                    // ignore: use_build_context_synchronously
+                    Navigator.push(
+                      context, 
+                      MaterialPageRoute(builder: (context)=> ScorePage(size: size))
+                    );
+                  } else {
+                    // ignore: use_build_context_synchronously
+                    Navigator.push(
+                      context, 
+                      MaterialPageRoute(builder: (context)=> const SubmitScorePage())
+                    );
+                  }
+                },
+                child: Container(
+                  width: 200,
+                  padding: const EdgeInsets.all(6),
+                  margin: const EdgeInsets.only(top: 20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(5),
+                    color: Colors.green,
+                  ),
+                  child: Center(
+                      child: Text(
+                        scoreIsSubmitted
+                        ? "see others scores"
+                        : "Submit your highest score and see others scores",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white, 
+                          fontSize: 17,
+                        ),
+                      )
+                  )
+                )
+              ),
             ],
           )
         )
@@ -198,7 +257,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       setState(() {
                         isShowingScore= true;
                       });
-                      String? localHScore= await getString("user", "hScore");
+                      String? localHScore= await DataProvider().getString("user", "hScore");
                       if(localHScore!=null) {
                         highestScore= int.parse(localHScore);
                       }
@@ -210,7 +269,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             alignment: Alignment.centerLeft,
                             child: Text(
                               "Score: $score",
-                              style: const TextStyle(color: Colors.black38, fontSize: 25),
+                              style: const TextStyle(color: Colors.black54, fontSize: 20),
                             )
                         )
                     )
@@ -273,12 +332,15 @@ class _MyHomePageState extends State<MyHomePage> {
                       hoverColor: Colors.transparent,
                       splashColor: Colors.black12,
                       onTap: () async{
-                        DateTime time= DateTime.fromMillisecondsSinceEpoch(0);
+                        DateTime time= DateTime.now();
+                        double xRange= time.millisecondsSinceEpoch
+                        %(defWidth-radius);
                         setState(() {
                           isStarted= true;
                           isGameOver= false;
                           stop= false;
-                          xPosition= radius + time.millisecondsSinceEpoch%defWidth;
+				  velocity= Velocity();
+                          xPosition= radius + xRange;
                           yPosition= 100;
                           score= 0;
                         });
@@ -385,7 +447,7 @@ class _MyHomePageState extends State<MyHomePage> {
         xPosition += velocity.dx;
       });
       if(yPosition+ radius>defaultHeight) {
-        if(xPosition- reflectorXPosition> 0
+        if(xPosition- reflectorXPosition> -5
             && reflectorXPosition+ 100- xPosition> 0
         ) {
           setState(() {
@@ -394,7 +456,7 @@ class _MyHomePageState extends State<MyHomePage> {
           });
         } else {
           if(score> highestScore) {
-            saveString("user", "hScore", score.toString());
+            DataProvider().saveString("user", "hScore", score.toString());
           }
           setState(() {
             isGameOver= true;
@@ -409,7 +471,11 @@ class _MyHomePageState extends State<MyHomePage> {
       if(xPosition> defWidth
           || xPosition - radius< 0
       ) {
-        velocity.horizontalReflect();
+        velocity.horizontalReflect(
+          xPosition, 
+          size.width,
+          radius
+        );
       }
     }
   }
@@ -420,6 +486,308 @@ class _MyHomePageState extends State<MyHomePage> {
       isStarted= false;
     });
   }
+
+}
+
+class Velocity {
+
+  double dx= 10;
+  double dy= 10;
+
+  void setVelocity(double dx, double dy) {
+    this.dx= dx;
+    this.dy= dy;
+  }
+
+  void verticalReflect(double rDx) {
+    dy= -dy;
+    if(dx< 30 && dx> -30) {
+      dx -= rDx;
+    }
+  }
+
+  void horizontalReflect(double x, double width, double radius) {
+    dx= -dx;
+    if(x + radius> width) {
+      dx=  min(dx, -dx);
+    }
+  }
+}
+
+class SubmitScorePage extends StatefulWidget {
+  const SubmitScorePage({super.key});
+
+  @override
+  State<SubmitScorePage> createState() => _SubmitScorePageState();
+}
+
+class _SubmitScorePageState extends State<SubmitScorePage> {
+  Color themeColor= const Color.fromRGBO(26, 29, 64, 1);
+  
+  TextEditingController controller= TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    Size size= MediaQuery.of(context).size;
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: getBody(size),
+    );
+  }
+
+  Widget getBody(Size size) {
+    return Container(
+      height: size.height,
+      width: size.width,
+      color: Colors.white,
+      child: Center(
+        child: SizedBox(
+          height: 100,
+          width: size.width- 50,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(left: 2),
+                height: 35,
+                width: size.width- 170,
+                decoration: BoxDecoration(
+                  border: Border.all(width: 1, color: themeColor),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: inputTextField(size, "Enter Your Nickname", controller)
+              ),
+              GestureDetector(
+                onTap: () async{
+                  await submitFunction(controller.text, size);
+                },
+                child: Container(
+                  width: 200,
+                  padding: const EdgeInsets.all(6),
+                  margin: const EdgeInsets.only(top: 20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(5),
+                    color: Colors.green,
+                  ),
+                  child: const Center(
+                      child: Text(
+                        "Submit Score",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white, 
+                          fontSize: 17,
+                        ),
+                      )
+                  )
+                )
+              ),
+            ],
+          )
+        )
+      )
+    );
+  }
+
+  Widget inputTextField(var size, String string, controller) {
+    return(
+        SizedBox(
+          height: 28,
+          child: TextField(
+            autofocus: true,
+            cursorHeight: 25,
+            cursorWidth: 1,
+            cursorColor: Colors.black,
+            controller: controller,
+            style: const TextStyle(fontSize: 15, height: 1.8),
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.only(bottom: 1, top: 5),
+              alignLabelWithHint: true,
+              isDense: true,
+              hintStyle: const TextStyle(color: Colors.grey, fontSize: 15, height: 1.7),
+              border: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              hintText: string
+            ),
+            onSubmitted: (value){
+              submitFunction(controller.text, size);
+            },
+          ),
+        )
+    );
+  }
+
+  Future<void> submitFunction(String userName, var size) async{
+    String? localHScore= await DataProvider().getString("user", "hScore");
+    String? response;
+    if(localHScore!=null) {
+      response= await ApiClient().submitScore({
+        "title": "atg001-hs",
+        "body": localHScore,
+        "author": userName 
+      });
+    }
+    // ignore: use_build_context_synchronously
+    Navigator.push(
+      context, 
+      MaterialPageRoute(builder: (context)=> ScorePage(size: size))
+    );
+  }
+
+}
+
+
+class ScorePage extends StatefulWidget {
+  final Size size;
+  const ScorePage({super.key, required this.size});
+
+  @override
+  State<ScorePage> createState() => _ScorePageState();
+}
+
+class _ScorePageState extends State<ScorePage> {
+  Color themeColor= const Color.fromRGBO(26, 29, 64, 1);
+
+  ScoreBoard data= ScoreBoard();
+
+  @override
+  void initState() {
+    initiatePeriodicInspection(widget.size);
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    var size= MediaQuery.of(context).size;
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: getBody(size)
+    );
+  }
+
+  Widget getBody(var size) {
+    return Container(
+      height: size.height,
+      width: size.width,
+      color: Colors.white,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 20, bottom: 30),
+              child: Text(
+                "All Scores",
+                style: TextStyle(fontSize: 25, color: themeColor),
+              ),
+            ),
+            SizedBox(
+              width: size.width,
+              child: Column(
+                children: getScoreList(data, size),
+              )
+            )
+        ],
+      )
+      )
+    );
+  }
+
+  List<Widget> getScoreList(ScoreBoard data, var size) {
+    debugPrint("getScoreList with data= ${data.list.first?.name}");
+    List<Widget> board= [
+      SizedBox(
+          height: 40,
+          width: min(size.width- 50, 350),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              getSubItemWidget(size, "Name", true),
+              getSubItemWidget(size, "Score", true),
+            ],
+          )
+        )
+    ];
+    for(int i=0; i< data.list.length; i++) {
+      board.add(
+        SizedBox(
+          height: 40,
+          width: min(size.width- 50, 350),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              getSubItemWidget(size, data.list[i]?.name??"", false),
+              getSubItemWidget(size, data.list[i]?.score??"", false)
+            ],
+          )
+        )
+      );
+    }
+    return board;
+  }
+
+  Widget getSubItemWidget(var size, String text, bool isBold) {
+    debugPrint("getSubItemWidget with text= $text");
+    return SizedBox(
+      height: 40,
+      width: size.width/2- 25,
+      child: Center(
+        child: Text(
+          text, 
+          style: TextStyle(
+            color: themeColor,
+            fontSize: 17,
+            fontWeight: isBold 
+              ? FontWeight.bold 
+              : FontWeight.normal,
+          )
+        ),
+      )
+    );
+  }
+
+  Future<void> initiatePeriodicInspection(var size) async{
+    while(true) {
+      ScoreBoard newData= await ApiClient().getScores();
+      if(newData.list.length!=data.list.length) {
+        setState(() {
+          data= newData;
+        });
+        debugPrint("condition 1 is satisfied, data.length= ${data.list.length}");
+      } else {
+        debugPrint("condition 2 is satisfied, data.length= ${data.list.length}");
+      }
+      await Future.delayed(const Duration(seconds: 30));
+    }
+  }
+
+}
+
+class StaticWidget {
+  Color themeColor= const Color.fromRGBO(26, 29, 64, 1);
+
+  void getFloatingSnackBar(var size, String string, BuildContext context) {
+    SnackBar floatingSnackBar = SnackBar(
+      content: Text(string, textAlign: TextAlign.center),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: themeColor,
+      margin: EdgeInsets.only(
+        bottom: size(size.height/2)- 40, 
+        left: size.width/2- 100, 
+        right: size.width/2- 100
+      ),
+      duration: const Duration(seconds: 1),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(floatingSnackBar);
+  }
+}
+
+class DataProvider {
 
   Future<void> saveString(String userId, String key, String value) async {
     final prefs = await SharedPreferences.getInstance();
@@ -436,22 +804,92 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class Velocity {
+class ApiClient {
 
-  double dx= 10;
-  double dy= 10;
-
-  void setVelocity(double dx, double dy) {
-    this.dx= dx;
-    this.dy= dy;
+  Future<String> submitScore(Map<String, String> body) async {
+    try {
+      debugPrint("submitScore is in progress...");
+      var response = await http.post(
+          Uri.parse("https://azzamtennisgamebe.000webhostapp.com/insert.php"),
+          headers: {
+            "Content-type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          },
+          body: json.encode(body)
+      );
+      debugPrint("response= $response");
+      var decodedResponse = json.decode(response.body);
+      if (response.statusCode==200) {
+        return decodedResponse['message'];
+      } else {
+        return "Cannot submit data";
+      }
+    } catch(e) {
+      debugPrint("got error 1= $e");
+      return e.toString();
+    }
   }
 
-  void verticalReflect(double rDx) {
-    dy= -dy;
-    dx -= rDx;
+  Future<ScoreBoard> getScores() async {
+    ScoreBoard scoreBoard= ScoreBoard();
+    debugPrint("getScores is in progress...");
+    try {
+      var response = await http.get(
+          Uri.parse("https://azzamtennisgamebe.000webhostapp.com/"),
+          headers: {
+            "Content-type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          },  
+      );
+      var decodedResponse = json.decode(response.body.split(">").last);
+      if (response.statusCode==200) {
+        for(int i=0; i< decodedResponse.length; i++) {
+          if(decodedResponse[i]["title"]=="atg001-hs") {
+            User user= User();
+            user.setData(decodedResponse[i]);
+            scoreBoard.addData(user);
+          }
+        }
+        debugPrint("scoreBoard= ${scoreBoard.list.first?.name}");
+        return scoreBoard;
+      } else {
+        scoreBoard.setError("Terdapat kesalahan pada server");
+        return scoreBoard;
+      }
+    } catch(e) {
+      debugPrint("got error 2= $e");
+      scoreBoard.setError(e.toString());
+      return scoreBoard;
+    }
   }
 
-  void horizontalReflect() {
-    dx= -dx;
+}
+
+class User {
+ 
+  String? name;
+  String? score;
+  String? addInf;
+
+  void setData(Map<String, dynamic> data) {
+    name= data['author'];
+    score= data['body'].toString().split("%%").first;
   }
+
+}
+
+class ScoreBoard {
+
+  List<User?> list= [];
+
+  String? error;
+
+  void addData(User user) {
+    list.add(user);
+  }
+
+  void setError(String error) {
+    this.error= error;
+  }
+
 }
