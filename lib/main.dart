@@ -663,13 +663,15 @@ class _SubmitScorePageState extends State<SubmitScorePage> {
                   border: Border.all(width: 1, color: themeColor),
                   borderRadius: BorderRadius.circular(5),
                 ),
-                child: inputTextField(size, "Enter Your Nickname", controller)
+                child: inputTextField(size, "Enter Your Nickname (>5 char)", controller)
               ),
               GestureDetector(
                 onTap: () async{
-                  await submitFunction(controller.text, size);
-                  DataProvider().saveString("user", "name", controller.text);
-                  debugPrint("userName has been saved as ${controller.text}");
+                  if(controller.text.length> 5) {
+                    await submitFunction(controller.text, size);
+                    DataProvider().saveString("user", "name", controller.text);
+                    debugPrint("userName has been saved as ${controller.text}");
+                  }
                 },
                 child: Container(
                   width: 200,
@@ -985,7 +987,7 @@ class ApiClient {
       debugPrint("submitScore is in progress...");
       final docUser= FirebaseFirestore.instance.collection('users').doc();
       final json= {
-        "id": "${name.split(' ')[0]}noId",
+        "id": name,
         "name": name,
         "score": score,
         "info": info 
