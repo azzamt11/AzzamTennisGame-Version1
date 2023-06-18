@@ -118,7 +118,6 @@ class _InitialPageState extends State<InitialPage> {
     await Future.delayed(const Duration(seconds: 1));
     String? userName= await DataProvider().getString('user', 'name');
     await Future.delayed(const Duration(seconds: 1));
-    debugPrint("saved name= $userName");
     // ignore: use_build_context_synchronously
     Navigator.push(
       context,
@@ -300,10 +299,9 @@ class _MyHomePageState extends State<MyHomePage> {
                 onTap: () async{
                   debugPrint("userName= $userName");
                   if(userName!=null) {
-                    if(highestScore> score) {
-                        String response= await ApiClient().updateScore(userName, highestScore);
-                    }
+                    String response= await ApiClient().updateScore(userName, highestScore);
                     // ignore: use_build_context_synchronously
+                    debugPrint("response= $response");
                     //StaticWidget().getFloatingSnackBar(size, response, context);
                     // ignore: use_build_context_synchronously
                     Navigator.push(
@@ -671,7 +669,7 @@ class _SubmitScorePageState extends State<SubmitScorePage> {
                 onTap: () async{
                   await submitFunction(controller.text, size);
                   DataProvider().saveString("user", "name", controller.text);
-                  debugPrint("userName has been saved");
+                  debugPrint("userName has been saved as ${controller.text}");
                 },
                 child: Container(
                   width: 200,
@@ -736,14 +734,12 @@ class _SubmitScorePageState extends State<SubmitScorePage> {
   Future<void> submitFunction(String userName, var size) async{
     String? localHScore= await DataProvider().getString("user", "hScore");
     String? response;
-    if(localHScore!=null) {
-      response= await ApiClient().submitScore(
+    response= await ApiClient().submitScore(
         userName, 
         userName, 
-        int.parse(localHScore==""? "0": localHScore), 
+        int.parse(localHScore??"0"), 
         info
-        );
-    }
+    );
     debugPrint(response);
     // ignore: use_build_context_synchronously
     Navigator.push(
@@ -989,7 +985,7 @@ class ApiClient {
       debugPrint("submitScore is in progress...");
       final docUser= FirebaseFirestore.instance.collection('users').doc();
       final json= {
-        "id": docUser.id,
+        "id": "${name.split(' ')[0]}noId",
         "name": name,
         "score": score,
         "info": info 
