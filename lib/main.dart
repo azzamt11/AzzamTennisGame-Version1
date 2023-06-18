@@ -24,13 +24,114 @@ class MyApp extends StatelessWidget {
     return const MaterialApp(
       title: 'Azzam Game 001',
       debugShowCheckedModeBanner: false,
-      home: MyHomePage(),
+      home: InitialPage(),
     );
   }
 }
 
+class InitialPage extends StatefulWidget {
+  const InitialPage({super.key});
+
+  @override
+  State<InitialPage> createState() => _InitialPageState();
+}
+
+class _InitialPageState extends State<InitialPage> {
+  Color themeColor= const Color.fromRGBO(26, 29, 64, 1);
+
+  @override
+  void initState() {
+    loadData();
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    var actualSize= MediaQuery.of(context).size;
+    Size size= Size(
+      min(actualSize.width, 600),
+      actualSize.height,
+    );
+    return Scaffold(
+      body: getBody(actualSize, size)
+    );
+  }
+
+  Widget getBody(var actualSize, var size) {
+    return Container(
+      height: actualSize.height,
+      width: actualSize.width,
+      color: Colors.white,
+      child: Center(
+        child: Container(
+          height: size.height,
+          width: size.width,
+          color: Colors.white,
+          child: Center(
+            child: SizedBox(
+              height: 250,
+              width: 200,
+              child: Column(
+                children: [
+                  Container(
+                    height: 200,
+                    width: 200,
+                    decoration: const BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage("images/atgLogo.png"),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(
+                    height: 50, 
+                    width: 200,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          "Loading...",
+                          style: TextStyle(fontSize: 15),
+                        ),
+                        SizedBox(
+                          height: 15,
+                          width: 15,
+                          child: CircularProgressIndicator(
+                            backgroundColor: Colors.transparent,
+                            color: Colors.orange,
+                          )
+                        )
+                      ],
+                    )
+                  )
+                ],
+              )
+            )
+          )
+        )
+      )
+    );
+  }
+
+  Future<void> loadData() async{
+    await Future.delayed(const Duration(seconds: 1));
+    String? userName= await DataProvider().getString('user', 'name');
+    await Future.delayed(const Duration(seconds: 1));
+    debugPrint("saved name= $userName");
+    // ignore: use_build_context_synchronously
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context)=> MyHomePage(userName: userName))
+    );
+  }
+  
+}
+
+
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
+  final String? userName;
+  const MyHomePage({super.key, required this.userName});
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
@@ -73,16 +174,16 @@ class _MyHomePageState extends State<MyHomePage> {
       actualSize.height,
     );
     return Scaffold(
-      body: getBody(actualSize, size)
+      body: getBody(actualSize, size, widget.userName)
     );
   }
 
-  Widget getBody(Size actualSize, Size size) {
+  Widget getBody(Size actualSize, Size size, String? userName) {
     double defWidth= size.width- radius;
     return Container(
       height: actualSize.height,
       width: actualSize.width,
-      color: themeColor,
+      color: Colors.black,
       child: Center(
         child: Container(
             height: size.height,
@@ -143,7 +244,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 getButton(size, defWidth),
                 getScore(size),
-                getScoreDisplay(size),
+                getScoreDisplay(size, userName),
                 isGameOver? gameOver(size, defWidth) : const SizedBox(height: 0),
               ],
             )
@@ -152,7 +253,7 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Widget getScoreDisplay(Size size) {
+  Widget getScoreDisplay(Size size, String? userName) {
     if(isShowingScore) {
       return GestureDetector(
         onTap: () {
@@ -197,16 +298,13 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
               GestureDetector(
                 onTap: () async{
-                  String? userName= await DataProvider().getString("user", "name");
+                  debugPrint("userName= $userName");
                   if(userName!=null) {
-                    String response= await ApiClient().submitScore(
-                      userName, 
-                      userName,
-                      highestScore,
-                      info
-                    );
+                    if(highestScore> score) {
+                        String response= await ApiClient().updateScore(userName, highestScore);
+                    }
                     // ignore: use_build_context_synchronously
-                    StaticWidget().getFloatingSnackBar(size, response, context);
+                    //StaticWidget().getFloatingSnackBar(size, response, context);
                     // ignore: use_build_context_synchronously
                     Navigator.push(
                       context, 
@@ -222,7 +320,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 },
                 child: Container(
                   width: 200,
-                  padding: const EdgeInsets.all(6),
+                  padding: EdgeInsets.all(userName==null? 6 : 12),
                   margin: const EdgeInsets.only(top: 20),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(5),
@@ -230,7 +328,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                   child: Center(
                       child: Text(
-                        scoreIsSubmitted
+                        userName!=null
                         ? "see others scores"
                         : "Submit your highest score and see others scores",
                         textAlign: TextAlign.center,
@@ -573,6 +671,7 @@ class _SubmitScorePageState extends State<SubmitScorePage> {
                 onTap: () async{
                   await submitFunction(controller.text, size);
                   DataProvider().saveString("user", "name", controller.text);
+                  debugPrint("userName has been saved");
                 },
                 child: Container(
                   width: 200,
@@ -627,6 +726,7 @@ class _SubmitScorePageState extends State<SubmitScorePage> {
             onSubmitted: (value){
               submitFunction(controller.text, size);
               DataProvider().saveString("user", "name", controller.text);
+              debugPrint("userName has been saved");
             },
           ),
         )
@@ -679,10 +779,21 @@ class _ScorePageState extends State<ScorePage> {
   @override
   Widget build(BuildContext context) {
     var size= MediaQuery.of(context).size;
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      appBar: getAppBar(size),
-      body: getBody(size),
+    return WillPopScope(
+      onWillPop: () async{
+        Navigator.push(
+          context, 
+          MaterialPageRoute(
+            builder: (context)=> const InitialPage()
+          )
+        );
+        return false;
+      },
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        appBar: getAppBar(size),
+        body: getBody(size),
+      )
     );
   }
 
@@ -691,6 +802,7 @@ class _ScorePageState extends State<ScorePage> {
       backgroundColor: Colors.white,
       elevation: 2,
       toolbarHeight: 56,
+      actions: [],
       title: Text(
         "All Scores",
         style: TextStyle(
@@ -858,6 +970,19 @@ class DataProvider {
 }
 
 class ApiClient {
+
+  Future<String> updateScore(String userName, int newScore) async {
+    try {
+      debugPrint("submitScore is in progress...");
+      final docUser= FirebaseFirestore.instance.collection('users').doc(userName);
+      await docUser.update({
+        "score": newScore
+      });
+      return "data is submitted successfully";
+    } catch(e) {
+      return e.toString();
+    }
+  }
 
   Future<String> submitScore(String id, String name, int score, String info) async {
     try {
