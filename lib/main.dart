@@ -1,12 +1,18 @@
-import 'dart:convert';
-import 'dart:html';
 import 'dart:math';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
+import 'package:firebase_core/firebase_core.dart';
 
-void main() {
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: const FirebaseOptions(
+    apiKey: "AIzaSyBdIHCblYkTUljGS_hOG3v2qE8001ga-qg",
+    appId: "1:442667951131:android:e93b2cf8b5daec86ed04be",
+    messagingSenderId: "442667951131",
+    projectId: "azzamdomainbackend",
+    ),);
   runApp(const MyApp());
 }
 
@@ -48,6 +54,8 @@ class _MyHomePageState extends State<MyHomePage> {
   bool isGameOver= false;
   bool isShowingScore= false;
   bool scoreIsSubmitted= false;
+
+  String info= "-";
 
   Velocity velocity= Velocity();
 
@@ -191,11 +199,12 @@ class _MyHomePageState extends State<MyHomePage> {
                 onTap: () async{
                   String? userName= await DataProvider().getString("user", "name");
                   if(userName!=null) {
-                    String response= await ApiClient().submitScore({
-                      "title": "atg001-hs",
-                      "body": "$highestScore",
-                      "author": userName 
-                    });
+                    String response= await ApiClient().submitScore(
+                      userName, 
+                      userName,
+                      highestScore,
+                      info
+                    );
                     // ignore: use_build_context_synchronously
                     StaticWidget().getFloatingSnackBar(size, response, context);
                     // ignore: use_build_context_synchronously
@@ -526,6 +535,8 @@ class _SubmitScorePageState extends State<SubmitScorePage> {
   
   TextEditingController controller= TextEditingController();
 
+  String info= "-";
+
   @override
   Widget build(BuildContext context) {
     Size size= MediaQuery.of(context).size;
@@ -561,6 +572,7 @@ class _SubmitScorePageState extends State<SubmitScorePage> {
               GestureDetector(
                 onTap: () async{
                   await submitFunction(controller.text, size);
+                  DataProvider().saveString("user", "name", controller.text);
                 },
                 child: Container(
                   width: 200,
@@ -614,6 +626,7 @@ class _SubmitScorePageState extends State<SubmitScorePage> {
             ),
             onSubmitted: (value){
               submitFunction(controller.text, size);
+              DataProvider().saveString("user", "name", controller.text);
             },
           ),
         )
@@ -624,12 +637,14 @@ class _SubmitScorePageState extends State<SubmitScorePage> {
     String? localHScore= await DataProvider().getString("user", "hScore");
     String? response;
     if(localHScore!=null) {
-      response= await ApiClient().submitScore({
-        "title": "atg001-hs",
-        "body": localHScore,
-        "author": userName 
-      });
+      response= await ApiClient().submitScore(
+        userName, 
+        userName, 
+        int.parse(localHScore==""? "0": localHScore), 
+        info
+        );
     }
+    debugPrint(response);
     // ignore: use_build_context_synchronously
     Navigator.push(
       context, 
@@ -650,12 +665,14 @@ class ScorePage extends StatefulWidget {
 
 class _ScorePageState extends State<ScorePage> {
   Color themeColor= const Color.fromRGBO(26, 29, 64, 1);
+  Color goldColor= const Color.fromRGBO(255, 215, 0, 1);
+  Color silverColor= const Color.fromARGB(255, 121, 120, 120);
+  Color brassColor= const Color.fromRGBO(225, 192, 110, 1);
 
   ScoreBoard data= ScoreBoard();
 
   @override
   void initState() {
-    initiatePeriodicInspection(widget.size);
     super.initState();
   }
 
@@ -664,108 +681,144 @@ class _ScorePageState extends State<ScorePage> {
     var size= MediaQuery.of(context).size;
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: getBody(size)
+      appBar: getAppBar(size),
+      body: getBody(size),
+    );
+  }
+
+  AppBar getAppBar(var size) {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 2,
+      toolbarHeight: 56,
+      title: Text(
+        "All Scores",
+        style: TextStyle(
+          fontSize: 20, 
+          fontWeight: FontWeight.bold,
+          color: themeColor
+        )
+      )
     );
   }
 
   Widget getBody(var size) {
     return Container(
-      height: size.height,
       width: size.width,
+      height: size.height,
       color: Colors.white,
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 20, bottom: 30),
-              child: Text(
-                "All Scores",
-                style: TextStyle(fontSize: 25, color: themeColor),
-              ),
-            ),
-            SizedBox(
-              width: size.width,
-              child: Column(
-                children: getScoreList(data, size),
+      child: Column(
+        children: [
+          buildTitle(),
+          SizedBox(
+            height: size.height- 160,
+            width: size.width,
+            child: SingleChildScrollView(
+              child: StreamBuilder(
+                stream: ApiClient().readScores(),
+                builder: ((context, snapshot) {
+                  if(snapshot.hasData) {
+                    final users= sort(snapshot.data!);
+                    return Column(
+                        children: users.map(buildUser).toList(),
+                      );
+                      } else {
+                        return SizedBox(
+                          height: size.height- 160,
+                          width: size.width,
+                          child: const Center(
+                            child: Text(
+                              "Belum Ada Score",
+                              style: TextStyle(fontSize: 30, color: Colors.grey)
+                              )
+                          )
+                        );
+                      }
+                  }), 
               )
             )
+          )
+        ]
+        
+      )
+    );
+  }
+
+  Widget buildUser(User user) {
+    return SizedBox(
+      height: 100,
+      width: min(widget.size.width, 600),
+      child: Row(
+        children: [
+          getScoreElement(user.info??"", 0, null),
+          getScoreElement(user.name??"", 1, null),
+          getScoreElement(user.score.toString(), 2, null),
         ],
       )
+    );
+  }
+
+  Widget buildTitle() {
+    return SizedBox(
+      height: 100,
+      width: min(widget.size.width, 600),
+      child: Row(
+        children: [
+          getScoreElement("Rank", 0, const Color.fromARGB(255, 5, 50, 87)),
+          getScoreElement("Name", 1, const Color.fromARGB(255, 5, 50, 87)),
+          getScoreElement("Score", 2, const Color.fromARGB(255, 5, 50, 87)),
+        ],
       )
     );
   }
 
-  List<Widget> getScoreList(ScoreBoard data, var size) {
-    debugPrint("getScoreList with data= ${data.list.first?.name}");
-    List<Widget> board= [
-      SizedBox(
-          height: 40,
-          width: min(size.width- 50, 350),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              getSubItemWidget(size, "Name", true),
-              getSubItemWidget(size, "Score", true),
-            ],
-          )
-        )
-    ];
-    for(int i=0; i< data.list.length; i++) {
-      board.add(
-        SizedBox(
-          height: 40,
-          width: min(size.width- 50, 350),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              getSubItemWidget(size, data.list[i]?.name??"", false),
-              getSubItemWidget(size, data.list[i]?.score??"", false)
-            ],
-          )
-        )
-      );
-    }
-    return board;
-  }
-
-  Widget getSubItemWidget(var size, String text, bool isBold) {
-    debugPrint("getSubItemWidget with text= $text");
-    return SizedBox(
-      height: 40,
-      width: size.width/2- 25,
+  Widget getScoreElement(String text, int index, Color? color) {
+    return Container(
+      padding: const EdgeInsets.all(5),
+      height: 100,
+      width: min(widget.size.width/3, 200),
+      decoration: BoxDecoration(
+        border: Border.all(width: 0.5, color: Colors.black12),
+      ),
       child: Center(
         child: Text(
-          text, 
+          text,
           style: TextStyle(
-            color: themeColor,
-            fontSize: 17,
-            fontWeight: isBold 
-              ? FontWeight.bold 
-              : FontWeight.normal,
+            color: text=="1st Winner" 
+            ? goldColor 
+            : text=="2nd Winner" 
+            ? silverColor 
+            : text=="3rd Winner" 
+            ?  brassColor 
+            : color??Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 20
           )
-        ),
+        )
       )
     );
   }
 
-  Future<void> initiatePeriodicInspection(var size) async{
-    while(true) {
-      ScoreBoard newData= await ApiClient().getScores();
-      if(newData.list.length!=data.list.length) {
-        setState(() {
-          data= newData;
-        });
-        debugPrint("condition 1 is satisfied, data.length= ${data.list.length}");
-      } else {
-        debugPrint("condition 2 is satisfied, data.length= ${data.list.length}");
+  List<User> sort(List<User> list) {
+    if(list.isNotEmpty) {
+      list.sort((a, b){ return b.score!.compareTo(a.score!);});
+      list[0].info= "1st Winner";
+      if(list.length> 1) {
+        list[1].info= "2nd Winner";
       }
-      await Future.delayed(const Duration(seconds: 30));
+      if(list.length> 2) {
+        list[2].info= "3rd Winner";
+      }
+      if(list.length> 3) {
+        for(int i=3; i< list.length; i++) {
+          list[i].info = "${i+1}-th Position";
+        }
+      }
+      return list;
+    } else {
+      return list;
     }
-  }
-
+  }  
 }
 
 class StaticWidget {
@@ -806,75 +859,52 @@ class DataProvider {
 
 class ApiClient {
 
-  Future<String> submitScore(Map<String, String> body) async {
+  Future<String> submitScore(String id, String name, int score, String info) async {
     try {
       debugPrint("submitScore is in progress...");
-      var response = await http.post(
-          Uri.parse("https://azzamtennisgamebe.000webhostapp.com/insert.php"),
-          headers: {
-            "Content-type": "application/json",
-            "Access-Control-Allow-Origin": "*"
-          },
-          body: json.encode(body)
-      );
-      debugPrint("response= $response");
-      var decodedResponse = json.decode(response.body);
-      if (response.statusCode==200) {
-        return decodedResponse['message'];
-      } else {
-        return "Cannot submit data";
-      }
+      final docUser= FirebaseFirestore.instance.collection('users').doc();
+      final json= {
+        "id": docUser.id,
+        "name": name,
+        "score": score,
+        "info": info 
+      };
+      await docUser.set(json);
+      return "data is submitted successfully";
     } catch(e) {
-      debugPrint("got error 1= $e");
       return e.toString();
     }
   }
 
-  Future<ScoreBoard> getScores() async {
-    ScoreBoard scoreBoard= ScoreBoard();
-    debugPrint("getScores is in progress...");
-    try {
-      var response = await http.get(
-          Uri.parse("https://azzamtennisgamebe.000webhostapp.com/"),
-          headers: {
-            "Content-type": "application/json",
-            "Access-Control-Allow-Origin": "*"
-          },  
-      );
-      var decodedResponse = json.decode(response.body.split(">").last);
-      if (response.statusCode==200) {
-        for(int i=0; i< decodedResponse.length; i++) {
-          if(decodedResponse[i]["title"]=="atg001-hs") {
-            User user= User();
-            user.setData(decodedResponse[i]);
-            scoreBoard.addData(user);
-          }
-        }
-        debugPrint("scoreBoard= ${scoreBoard.list.first?.name}");
-        return scoreBoard;
-      } else {
-        scoreBoard.setError("Terdapat kesalahan pada server");
-        return scoreBoard;
-      }
-    } catch(e) {
-      debugPrint("got error 2= $e");
-      scoreBoard.setError(e.toString());
-      return scoreBoard;
-    }
-  }
+  Stream<List<User>> readScores() => FirebaseFirestore.instance
+  .collection("users")
+  .snapshots()
+  .map(
+    (snapshot)=> snapshot.docs.map(
+      (doc)=> User.fromJson(doc.data())).toList());
 
 }
 
 class User {
  
-  String? name;
-  String? score;
-  String? addInf;
+  String? id;
+  final String? name;
+  final int? score;
+  String? info;
 
-  void setData(Map<String, dynamic> data) {
-    name= data['author'];
-    score= data['body'].toString().split("%%").first;
-  }
+  User({
+    this.id= "",
+    required this.name,
+    required this.score,
+    required this.info,
+  });
+
+  static User fromJson(Map<String, dynamic> json) => User(
+    id: json['id'],
+    name: json['name'],
+    score: json['score'],
+    info: '-'
+  );
 
 }
 
